@@ -29,6 +29,7 @@ public:
 	bool update(ofVec2f leftEyePosition, ofVec2f rightEyePosition);
 
 	float getWidth();
+	void setWidth(float width);
 	const vector<float>& getScreenPoints();
 	const vector<float>& getShutterPoints();
 private:

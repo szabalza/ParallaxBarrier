@@ -52,7 +52,7 @@ private:
 
 	// model transformation
 	ofMatrix4x4 _modelTransformation;
-	float _widthScale;
+	float _modelScale;
 	ofVec2f _modelLeftEyePosition;
 	ofVec2f _modelRightEyePosition;
 

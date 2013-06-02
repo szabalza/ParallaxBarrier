@@ -11,13 +11,14 @@ ParallaxBarrier::ParallaxBarrier(float width, float height, int resolutionWidth,
 	_viewDirection = viewDirection;
 	_upDirection = upDirection;
 	_inversePixelWidth = _resolutionWidth/_width;
+	_modelScale = 1.f/spacing;
 
 	_frontImage.allocate(resolutionWidth, resolutionHeight, OF_IMAGE_COLOR);
 	_backImage.allocate(resolutionWidth, resolutionHeight, OF_IMAGE_COLOR);
 
 	updateModelTransformation();
 
-	_model = new ParallaxBarrierModel(width);
+	_model = new ParallaxBarrierModel(_width*_modelScale);
 }
 
 ParallaxBarrier::~ParallaxBarrier()
@@ -44,14 +45,13 @@ void ParallaxBarrier::update(ofVec3f const &leftEyePosition, ofVec3f const &righ
 
 void ParallaxBarrier::updateModelTransformation()
 {
-	float scale = 1/_spacing;
-	_widthScale = 1/_width;
 	ofMatrix4x4 modelScale, modelRotation, modelUpRotation, modelTranslation, modelCenterTranslation;
-	modelScale.makeScaleMatrix(scale, _widthScale, scale);
+	modelScale.makeScaleMatrix(_modelScale, _modelScale, _modelScale);
+
 	modelRotation.makeRotationMatrix(_viewDirection, ofVec3f(0,0,1));
 	modelUpRotation.makeRotationMatrix(modelRotation*_upDirection, ofVec3f(0,1,0));
 	modelTranslation.makeTranslationMatrix(ofVec3f(_width * 0.5,0,0));
-	modelCenterTranslation.makeTranslationMatrix(_position.getScaled(_spacing) - _position);
+	modelCenterTranslation.makeTranslationMatrix(-_position);
 
 	_modelTransformation = modelCenterTranslation * modelRotation * modelUpRotation * modelTranslation * modelScale;
 }
@@ -76,7 +76,7 @@ void ParallaxBarrier::updateShutterPixels()
 	bool pair = true;
 	for (vector<float>::const_iterator it = points.begin(), end = points.end(); it != end; ++it)
 	{
-		itValue = *it;
+		itValue = (*it)*_spacing;
 		floatingPixel = itValue*_inversePixelWidth;
 		actualPixel = floor(floatingPixel);
 		pixelPercentage = floatingPixel - floor(floatingPixel);
@@ -151,7 +151,7 @@ void ParallaxBarrier::updateScreenPixels(ofImage &leftEyeView, ofImage &rightEye
 	bool pair = true;
 	for (vector<float>::const_iterator it = points.begin(), end = points.end(); it != end; ++it)
 	{
-		itValue = *it;
+		itValue = (*it)*_spacing;
 		floatingPixel = itValue*_inversePixelWidth;
 		actualPixel = floor(floatingPixel);
 		pixelPercentage = floatingPixel - floor(floatingPixel);
@@ -304,6 +304,7 @@ float ParallaxBarrier::getSpacing()
 void ParallaxBarrier::setWidth(float width)
 {
 	this->_width = width;
+	_model->setWidth(_width*_modelScale);
 	updateModelTransformation();
 }
 
@@ -325,6 +326,8 @@ void ParallaxBarrier::setResolutionHeight(int resolutionHeight)
 void ParallaxBarrier::setSpacing(float spacing)
 {
 	this->_spacing = spacing;
+	_modelScale = 1.f / _spacing;
+	_model->setWidth(_width*_modelScale);
 	updateModelTransformation();
 }
 

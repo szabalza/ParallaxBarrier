@@ -210,6 +210,11 @@ float ParallaxBarrierModel::intersectionXAxis(ofVec2f point, ofVec2f dir)
 	return point.x - point.y * dir.x / dir.y;
 }
 
+void ParallaxBarrierModel::setWidth(float width)
+{
+	_width = width;
+}
+
 float ParallaxBarrierModel::getWidth()
 {
 	return _width;
