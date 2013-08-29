@@ -23,7 +23,7 @@ using namespace std;
 class ParallaxBarrierModel
 {
 public:
-	ParallaxBarrierModel(float width);
+	ParallaxBarrierModel();
 	virtual ~ParallaxBarrierModel();
 
 	bool update(ofVec2f leftEyePosition, ofVec2f rightEyePosition);
@@ -31,12 +31,12 @@ public:
 	float getWidth();
 	void setWidth(float width);
 	const vector<float>& getScreenPoints();
-	const vector<float>& getShutterPoints();
+	const vector<float>& getBarrierPoints();
 private:
 	float _width;
 
 	vector<float> _screenPoints; 
-	vector<float> _shutterPoints;
+	vector<float> _barrierPoints;
 
 	float getMinVisiblePoint(ofVec2f leftEyePosition, ofVec2f rightEyePosition);
 	float getMaxVisiblePoint(ofVec2f leftEyePosition, ofVec2f rightEyePosition);

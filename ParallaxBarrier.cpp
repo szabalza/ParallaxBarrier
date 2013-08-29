@@ -1,29 +1,31 @@
 #include "ParallaxBarrier.h"
 
-ParallaxBarrier::ParallaxBarrier(float width, float height, int resolutionWidth, int resolutionHeight, float spacing, ofVec3f const &position, ofVec3f const &viewDirection, ofVec3f const &upDirection)
+ParallaxBarrier::ParallaxBarrier(float width, float height, int screenResolutionWidth, int screenResolutionHeight, int barrierResolutionWidth, int barrierResolutionHeight, float spacing, ofVec3f const &position, ofVec3f const &viewDirection, ofVec3f const &upDirection)
 {
 	_width = width;
 	_height = height;
-	_resolutionWidth = resolutionWidth;
-	_resolutionHeight = resolutionHeight;
+	_screenResolutionWidth = screenResolutionWidth;
+	_screenResolutionHeight = screenResolutionHeight;
+	_barrierResolutionWidth = barrierResolutionWidth;
+	_barrierResolutionHeight = barrierResolutionHeight;
 	_spacing = spacing;
 	_position = position;
 	_viewDirection = viewDirection;
 	_upDirection = upDirection;
-	_inversePixelWidth = _resolutionWidth/_width;
+	_screenInversePixelWidth = _screenResolutionWidth/_width;
+	_barrierInversePixelWidth = _barrierResolutionWidth/_width;
 	_modelScale = 1.f/spacing;
 
-	_frontImage.allocate(resolutionWidth, resolutionHeight, OF_IMAGE_COLOR);
-	_backImage.allocate(resolutionWidth, resolutionHeight, OF_IMAGE_COLOR);
+	_barrierImage.allocate(barrierResolutionWidth, barrierResolutionHeight, OF_IMAGE_COLOR);
+	_screenImage.allocate(screenResolutionWidth, screenResolutionHeight, OF_IMAGE_COLOR);
 
 	updateModelTransformation();
 
-	_model = new ParallaxBarrierModel(_width*_modelScale);
+	_model.setWidth(_width*_modelScale);
 }
 
 ParallaxBarrier::~ParallaxBarrier()
 {
-	delete _model;
 }
 
 void ParallaxBarrier::update(ofVec3f const &leftEyePosition, ofVec3f const &rightEyePosition, ofImage &leftEyeView, ofImage &rightEyeView)
@@ -37,7 +39,7 @@ void ParallaxBarrier::update(ofVec3f const &leftEyePosition, ofVec3f const &righ
 	_modelRightEyePosition = ofVec2f(modelRightEyePosition3d.x, modelRightEyePosition3d.z);
 
 	//modify model for new eye positions
-	_model->update(_modelLeftEyePosition, _modelRightEyePosition);
+	_model.update(_modelLeftEyePosition, _modelRightEyePosition);
 
 	//modify pixels
 	updatePixels(leftEyeView, rightEyeView);
@@ -58,18 +60,18 @@ void ParallaxBarrier::updateModelTransformation()
 
 void ParallaxBarrier::updatePixels(ofImage &leftEyeView, ofImage &rightEyeView)
 {
-	updateShutterPixels();
+	updateBarrierPixels();
 	updateScreenPixels(leftEyeView, rightEyeView);
 }
 
-void ParallaxBarrier::updateShutterPixels()
+void ParallaxBarrier::updateBarrierPixels()
 {
 	// points in the list are ordered pairs where 
 	// the first point indicates the start of a non-transparent pixel zone, and 
 	// the second point indicates the end of a non-transparent pixel zone
-	const vector<float>& points = _model->getShutterPoints();
+	const vector<float>& points = _model.getBarrierPoints();
 
-	paintVerticalPixelsBlack(_frontImage);
+	paintVerticalPixelsBlack(_barrierImage);
 
 	float itValue, floatingPixel, pixelPercentage;
 	int actualPixel, startPixel = 0, endPixel;
@@ -77,47 +79,47 @@ void ParallaxBarrier::updateShutterPixels()
 	for (vector<float>::const_iterator it = points.begin(), end = points.end(); it != end; ++it)
 	{
 		itValue = (*it)*_spacing;
-		floatingPixel = itValue*_inversePixelWidth;
+		floatingPixel = itValue*_barrierInversePixelWidth;
 		actualPixel = floor(floatingPixel);
 		pixelPercentage = floatingPixel - floor(floatingPixel);
 
-		if (pair && pixelPercentage <= SHUTTER_PIXEL_EPSILON_PERCENTAGE)
+		if (pair && pixelPercentage <= BARRIER_PIXEL_EPSILON_PERCENTAGE)
 		{
 			//previous pixel ends white 
 			endPixel = actualPixel - 1;
 
 			//paint white
-			paintVerticalPixels(ofColor::white, startPixel, endPixel, _frontImage);
+			paintVerticalPixels(ofColor::white, startPixel, endPixel, _barrierImage);
 
 			//actual pixel starts black
 			startPixel = actualPixel;
-		} else if (pair && pixelPercentage > SHUTTER_PIXEL_EPSILON_PERCENTAGE)
+		} else if (pair && pixelPercentage > BARRIER_PIXEL_EPSILON_PERCENTAGE)
 		{
 			//actual pixel ends white
 			endPixel = actualPixel;
 
 			//paint white
-			paintVerticalPixels(ofColor::white, startPixel, endPixel, _frontImage);
+			paintVerticalPixels(ofColor::white, startPixel, endPixel, _barrierImage);
 
 			//next pixel starts black
 			startPixel = actualPixel + 1;
-		} else if (!pair && pixelPercentage < SHUTTER_PIXEL_EPSILON_PERCENTAGE)
+		} else if (!pair && pixelPercentage < BARRIER_PIXEL_EPSILON_PERCENTAGE)
 		{
 			//previous pixel ends black
 			endPixel = actualPixel - 1;
 
 			//paint black
-			//paintVerticalPixels(ofColor::black, startPixel, endPixel, _frontImage);
+			//paintVerticalPixels(ofColor::black, startPixel, endPixel, _barrierImage);
 
 			//actual pixel starts white
 			startPixel = actualPixel;
-		} else if (!pair && pixelPercentage >= SHUTTER_PIXEL_EPSILON_PERCENTAGE)
+		} else if (!pair && pixelPercentage >= BARRIER_PIXEL_EPSILON_PERCENTAGE)
 		{
 			//actual pixel ends black
 			endPixel = actualPixel;
 
 			//paint black
-			//paintVerticalPixels(ofColor::black, startPixel, endPixel, _frontImage);
+			//paintVerticalPixels(ofColor::black, startPixel, endPixel, _barrierImage);
 
 			//next pixel starts white
 			startPixel = actualPixel + 1;
@@ -126,25 +128,25 @@ void ParallaxBarrier::updateShutterPixels()
 		pair = !pair;
 	}
 
-	if (startPixel < _frontImage.width)
+	if (startPixel < _barrierImage.width)
 	{
 		//actual pixel ends white
-		endPixel = _frontImage.width - 1;
+		endPixel = _barrierImage.width - 1;
 
 		//paint white
-		paintVerticalPixels(ofColor::white, startPixel, endPixel, _frontImage);
+		paintVerticalPixels(ofColor::white, startPixel, endPixel, _barrierImage);
 	}
 
-	_frontImage.update();
+	_barrierImage.update();
 }
 
 void ParallaxBarrier::updateScreenPixels(ofImage &leftEyeView, ofImage &rightEyeView)
 {
 	//points in the list delimit pixel zones for each eye view
 	//first zone corresponds to left eye view
-	const vector<float>& points = _model->getScreenPoints();
+	const vector<float>& points = _model.getScreenPoints();
 
-	_backImage.clone(leftEyeView);
+	_screenImage.clone(leftEyeView);
 
 	float itValue, floatingPixel, pixelPercentage;
 	int actualPixel, startPixel = -1, endPixel;
@@ -152,7 +154,7 @@ void ParallaxBarrier::updateScreenPixels(ofImage &leftEyeView, ofImage &rightEye
 	for (vector<float>::const_iterator it = points.begin(), end = points.end(); it != end; ++it)
 	{
 		itValue = (*it)*_spacing;
-		floatingPixel = itValue*_inversePixelWidth;
+		floatingPixel = itValue*_screenInversePixelWidth;
 		actualPixel = floor(floatingPixel);
 		pixelPercentage = floatingPixel - floor(floatingPixel);
 
@@ -167,15 +169,15 @@ void ParallaxBarrier::updateScreenPixels(ofImage &leftEyeView, ofImage &rightEye
 				if (pair)
 				{
 					//paint right view
-					paintVerticalPixels(rightEyeView, startPixel, endPixel, _backImage);
+					paintVerticalPixels(rightEyeView, startPixel, endPixel, _screenImage);
 				} else
 				{
 					//paint left view
-					//paintVerticalPixels(leftEyeView, startPixel, endPixel, _backImage);
+					//paintVerticalPixels(leftEyeView, startPixel, endPixel, _screenImage);
 				}
 
 				//paint one black pixel
-				paintVerticalPixels(ofColor::black, actualPixel, actualPixel, _backImage);
+				paintVerticalPixels(ofColor::black, actualPixel, actualPixel, _screenImage);
 
 				//next pixel starts left/right view
 				startPixel = actualPixel + 1;
@@ -187,7 +189,7 @@ void ParallaxBarrier::updateScreenPixels(ofImage &leftEyeView, ofImage &rightEye
 				endPixel = actualPixel - 1;
 
 				//paint right view
-				paintVerticalPixels(rightEyeView, startPixel, endPixel, _backImage);
+				paintVerticalPixels(rightEyeView, startPixel, endPixel, _screenImage);
 
 				//actual pixel starts left view
 				startPixel = actualPixel;
@@ -198,7 +200,7 @@ void ParallaxBarrier::updateScreenPixels(ofImage &leftEyeView, ofImage &rightEye
 				endPixel = actualPixel - 1;
 
 				//paint left view
-				//paintVerticalPixels(leftEyeView, startPixel, endPixel, _backImage);
+				//paintVerticalPixels(leftEyeView, startPixel, endPixel, _screenImage);
 
 				//actual pixel starts right view
 				startPixel = actualPixel;
@@ -209,7 +211,7 @@ void ParallaxBarrier::updateScreenPixels(ofImage &leftEyeView, ofImage &rightEye
 				endPixel = actualPixel;
 
 				//paint right view
-				paintVerticalPixels(rightEyeView, startPixel, endPixel, _backImage);
+				paintVerticalPixels(rightEyeView, startPixel, endPixel, _screenImage);
 
 				//next pixel starts left view
 				startPixel = actualPixel + 1;
@@ -220,7 +222,7 @@ void ParallaxBarrier::updateScreenPixels(ofImage &leftEyeView, ofImage &rightEye
 				endPixel = actualPixel;
 
 				//paint left view
-				//paintVerticalPixels(leftEyeView, startPixel, endPixel, _backImage);
+				//paintVerticalPixels(leftEyeView, startPixel, endPixel, _screenImage);
 
 				//next pixel starts right view
 				startPixel = actualPixel + 1;
@@ -234,7 +236,7 @@ void ParallaxBarrier::updateScreenPixels(ofImage &leftEyeView, ofImage &rightEye
 		pair = !pair;
 	}
 
-	_backImage.update();
+	_screenImage.update();
 }
 
 void ParallaxBarrier::paintVerticalPixels(ofColor const &color, int start, int end, ofImage &image)
@@ -286,14 +288,24 @@ float ParallaxBarrier::getHeight()
 	return _height;
 }
 
-int ParallaxBarrier::getResolutionWidth()
+int ParallaxBarrier::getBarrierResolutionWidth()
 {
-	return _resolutionWidth;
+	return _barrierResolutionWidth;
 }
 
-int ParallaxBarrier::getResolutionHeight()
+int ParallaxBarrier::getBarrierResolutionHeight()
 {
-	return _resolutionHeight;
+	return _barrierResolutionHeight;
+}
+
+int ParallaxBarrier::getScreenResolutionWidth()
+{
+	return _screenResolutionWidth;
+}
+
+int ParallaxBarrier::getScreenResolutionHeight()
+{
+	return _screenResolutionHeight;
 }
 
 float ParallaxBarrier::getSpacing()
@@ -304,7 +316,7 @@ float ParallaxBarrier::getSpacing()
 void ParallaxBarrier::setWidth(float width)
 {
 	this->_width = width;
-	_model->setWidth(_width*_modelScale);
+	_model.setWidth(_width*_modelScale);
 	updateModelTransformation();
 }
 
@@ -313,21 +325,31 @@ void ParallaxBarrier::setHeight(float height)
 	this->_height = height;
 }
 
-void ParallaxBarrier::setResolutionWidth(int resolutionWidth)
+void ParallaxBarrier::setBarrierResolutionWidth(int barrierResolutionWidth)
 {
-	this->_resolutionWidth = resolutionWidth;
+	this->_barrierResolutionWidth = barrierResolutionWidth;
 }
 
-void ParallaxBarrier::setResolutionHeight(int resolutionHeight)
+void ParallaxBarrier::setBarrierResolutionHeight(int barrierResolutionHeight)
 {
-	this->_resolutionHeight = resolutionHeight;
+	this->_barrierResolutionHeight = barrierResolutionHeight;
+}
+
+void ParallaxBarrier::setScreenResolutionWidth(int screenResolutionWidth)
+{
+	this->_screenResolutionWidth = screenResolutionWidth;
+}
+
+void ParallaxBarrier::setScreenResolutionHeight(int screenResolutionHeight)
+{
+	this->_screenResolutionHeight = screenResolutionHeight;
 }
 
 void ParallaxBarrier::setSpacing(float spacing)
 {
 	this->_spacing = spacing;
 	_modelScale = 1.f / _spacing;
-	_model->setWidth(_width*_modelScale);
+	_model.setWidth(_width*_modelScale);
 	updateModelTransformation();
 }
 
@@ -364,12 +386,12 @@ void ParallaxBarrier::setUpDirection(ofVec3f upDirection)
 	updateModelTransformation();
 }
 
-const ofImage& ParallaxBarrier::getBackImage()
+const ofImage& ParallaxBarrier::getScreenImage()
 {
-	return _backImage;
+	return _screenImage;
 }
 
-const ofImage& ParallaxBarrier::getFrontImage()
+const ofImage& ParallaxBarrier::getBarrierImage()
 {
-	return _frontImage;
+	return _barrierImage;
 }

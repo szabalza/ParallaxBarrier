@@ -1,8 +1,7 @@
 #include "ParallaxBarrierModel.h"
 
-ParallaxBarrierModel::ParallaxBarrierModel(float width)
+ParallaxBarrierModel::ParallaxBarrierModel(): _width(1.f)
 {
-	_width = width;
 }
 
 ParallaxBarrierModel::~ParallaxBarrierModel()
@@ -15,7 +14,7 @@ bool ParallaxBarrierModel::update(ofVec2f leftEyePosition, ofVec2f rightEyePosit
 	float minPoint = getMinVisiblePoint(leftEyePosition, rightEyePosition);
 	float maxPoint = getMaxVisiblePoint(leftEyePosition, rightEyePosition);
 	_screenPoints.clear();
-	_shutterPoints.clear();
+	_barrierPoints.clear();
 
 	if (minPoint == -1 || maxPoint == -1)
 	{
@@ -30,7 +29,7 @@ bool ParallaxBarrierModel::update(ofVec2f leftEyePosition, ofVec2f rightEyePosit
 	float rightShutterDistanceFraction = 1/rightEyePosition.y;
 	float leftShutterDistanceFraction = 1/leftEyePosition.y;
 	float BCoef = (rightEyePosition.x * rightShutterDistanceFraction - leftEyePosition.x * leftShutterDistanceFraction) / (1 - leftShutterDistanceFraction);
-	float ACoef = (1 - rightShutterDistanceFraction) / (1 - leftShutterDistanceFraction);
+	float ACoef = (1.f - rightShutterDistanceFraction) / (1.f - leftShutterDistanceFraction);
 	float cumulativeCoef1 = minPoint * ACoef;
 	float cumulativeCoef2 = 1;
 	int errorCounter = 0;
@@ -66,6 +65,14 @@ bool ParallaxBarrierModel::update(ofVec2f leftEyePosition, ofVec2f rightEyePosit
 			shutterPoints.push_back(newShutterPoint);
 		}
 
+		float an = pow(ACoef, errorCounter+1);
+		float other = ((newScreenPoint * (1 - ACoef)) - BCoef )/ (minPoint - BCoef - (ACoef*minPoint));
+
+		cout.precision(15);
+		cout << "an: " << an << '\t' << "other: " << other << '\t' << "precistion: " << an/other << endl;
+		float logOtherBaseA = log(other) / log(ACoef);
+		cout << "n = " << logOtherBaseA << '\t' << "presition: " << logOtherBaseA/((float)(errorCounter + 1)) << endl;
+
 		screenIterationPoint = newScreenPoint;
 		cumulativeCoef1 = cumulativeCoef1 * ACoef;
 		cumulativeCoef2 = cumulativeCoef2 * ACoef + 1;
@@ -84,7 +91,7 @@ bool ParallaxBarrierModel::update(ofVec2f leftEyePosition, ofVec2f rightEyePosit
 	bool startValue = true;
 	bool endValue = true;
 	float itValue;
-	_shutterPoints.clear();
+	_barrierPoints.clear();
 
 	for (vector<float>::const_iterator it = shutterPoints.begin(), end = shutterPoints.end(); it != end; ++it)
 	{
@@ -96,12 +103,12 @@ bool ParallaxBarrierModel::update(ofVec2f leftEyePosition, ofVec2f rightEyePosit
 			{
 				if (!pair)
 				{
-					_shutterPoints.push_back(0);
+					_barrierPoints.push_back(0);
 				}
 				startValue = false;
 			}
 
-			_shutterPoints.push_back(itValue);
+			_barrierPoints.push_back(itValue);
 		}
 		else if (itValue > _width)
 		{
@@ -109,7 +116,7 @@ bool ParallaxBarrierModel::update(ofVec2f leftEyePosition, ofVec2f rightEyePosit
 			{
 				if (!pair)
 				{
-					_shutterPoints.push_back(_width);
+					_barrierPoints.push_back(_width);
 				}
 				endValue = false;
 			}
@@ -225,8 +232,8 @@ const vector<float>& ParallaxBarrierModel::getScreenPoints()
 	return _screenPoints;
 }
 
-const vector<float>& ParallaxBarrierModel::getShutterPoints()
+const vector<float>& ParallaxBarrierModel::getBarrierPoints()
 {
-	return _shutterPoints;
+	return _barrierPoints;
 }
 
