@@ -29,7 +29,7 @@ public:
 
 	string getFileName();
 	bool defineArguments(const list<OpenCLBuffer*> * readWriteBuffers, const list<OpenCLBuffer*> * readBuffers, const list<OpenCLBuffer*> * writeBuffers, const list<OpenCLTexture*> * readTextures, const list<OpenCLTexture*> * writeTextures);
-	bool execute(const int &workDimension, const size_t &globalSize, const size_t &localSize);
+	bool execute(const int &workDimension, const size_t* globalSize, const size_t* localSize);
 	cl_int getStatus();
 
 

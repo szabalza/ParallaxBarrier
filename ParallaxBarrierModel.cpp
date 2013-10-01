@@ -43,35 +43,34 @@ bool ParallaxBarrierModel::update(ofVec2f leftEyePosition, ofVec2f rightEyePosit
 
 	while (screenIterationPoint < maxPoint && errorCounter <= PARALLAX_BARRIER_MAX_ITERATIONS)
 	{
-		if (pair)
-		{
-			newShutterPoint = rightEyePosition.x * rightShutterDistanceFraction + screenIterationPoint * (1-rightShutterDistanceFraction) ;
-			shutterPoints.push_back(newShutterPoint);
-		}
+		newShutterPoint = rightEyePosition.x * rightShutterDistanceFraction + screenIterationPoint * (1-rightShutterDistanceFraction) ;
+		shutterPoints.push_back(newShutterPoint);
 
 		newScreenPoint = cumulativeCoef1 + BCoef * cumulativeCoef2;
 		if (newScreenPoint >= _width)
 		{
 			screenPoints.push_back(maxPoint);
+
+			if (pair)
+			{
+				newShutterPoint = rightEyePosition.x * rightShutterDistanceFraction + newScreenPoint * (1-rightShutterDistanceFraction) ;
+				shutterPoints.push_back(newShutterPoint);
+			}
 		} 
 		else
 		{
 			screenPoints.push_back(newScreenPoint);
 		}
 		
-		if (pair)
-		{
-			newShutterPoint = rightEyePosition.x * rightShutterDistanceFraction + newScreenPoint * (1-rightShutterDistanceFraction) ;
-			shutterPoints.push_back(newShutterPoint);
-		}
+		
 
-		float an = pow(ACoef, errorCounter+1);
-		float other = ((newScreenPoint * (1 - ACoef)) - BCoef )/ (minPoint - BCoef - (ACoef*minPoint));
+		//float an = pow(ACoef, errorCounter+1);
+		//float other = ((newScreenPoint * (1 - ACoef)) - BCoef )/ (minPoint - BCoef - (ACoef*minPoint));
 
-		cout.precision(15);
-		cout << "an: " << an << '\t' << "other: " << other << '\t' << "precistion: " << an/other << endl;
-		float logOtherBaseA = log(other) / log(ACoef);
-		cout << "n = " << logOtherBaseA << '\t' << "presition: " << logOtherBaseA/((float)(errorCounter + 1)) << endl;
+		//cout.precision(15);
+		//cout << "an: " << an << '\t' << "other: " << other << '\t' << "precistion: " << an/other << endl;
+		//float logOtherBaseA = log(other) / log(ACoef);
+		//cout << "n = " << logOtherBaseA << '\t' << "presition: " << logOtherBaseA/((float)(errorCounter + 1)) << endl;
 
 		screenIterationPoint = newScreenPoint;
 		cumulativeCoef1 = cumulativeCoef1 * ACoef;

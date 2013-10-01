@@ -16,19 +16,71 @@ ParallaxBarrier::ParallaxBarrier(float width, float height, int screenResolution
 	_barrierInversePixelWidth = _barrierResolutionWidth/_width;
 	_modelScale = 1.f/spacing;
 
-	_barrierImage.allocate(barrierResolutionWidth, barrierResolutionHeight, OF_IMAGE_COLOR);
-	_screenImage.allocate(screenResolutionWidth, screenResolutionHeight, OF_IMAGE_COLOR);
+	// kernel loading and OpenCL kernel creation
+	_screenKernel = new OpenCLKernel("opencl/kernel/screenKernel.cl", "updateScreenPixels");
+	_barrierKernel = new OpenCLKernel("opencl/kernel/barrierKernel.cl", "updateBarrierPixels");
 
+	// images initialization after OpenCL contexts are created
+	_barrierImage.allocate(barrierResolutionWidth, barrierResolutionHeight, OF_IMAGE_COLOR_ALPHA);
+	_screenImage.allocate(screenResolutionWidth, screenResolutionHeight, OF_IMAGE_COLOR_ALPHA);
+	_screenLeftImage.allocate(screenResolutionWidth, screenResolutionHeight, OF_IMAGE_COLOR_ALPHA);
+	_screenRightImage.allocate(screenResolutionWidth, screenResolutionHeight, OF_IMAGE_COLOR_ALPHA);
+
+	//OpenCL data initialization
+	_screenKernelLocalSize[0] = 16;
+	_screenKernelLocalSize[1] = 16;
+	_screenKernelGlobalSize[0] = _screenKernelLocalSize[0] * ceil( ((float) _screenImage.width) / (float) _screenKernelLocalSize[0] );
+	_screenKernelGlobalSize[1] = _screenKernelLocalSize[1] * ceil( ((float) _screenImage.height) / (float) _screenKernelLocalSize[1] );
+
+	_barrierKernelLocalSize[0] = 16;
+	_barrierKernelLocalSize[1] = 16;
+	_barrierKernelGlobalSize[0] = _screenKernelLocalSize[0] * ceil( ((float) _barrierImage.width) / (float) _barrierKernelLocalSize[0] );
+	_barrierKernelGlobalSize[1] = _screenKernelLocalSize[1] * ceil( ((float) _barrierImage.height) / (float) _barrierKernelLocalSize[1] );
+
+	_screenPoints = new cl_char[screenResolutionWidth];
+	_barrierPoints = new cl_char[barrierResolutionWidth];
+
+	_screenPointsBuffer = new OpenCLBuffer(_screenPoints, _screenResolutionWidth * sizeof(cl_char));
+	_screenKernelReadBuffers.push_back(_screenPointsBuffer);
+
+	_barrierPointsBuffer = new OpenCLBuffer(_barrierPoints, _barrierResolutionWidth * sizeof(cl_char));
+	_barrierKernelReadBuffers.push_back(_barrierPointsBuffer);
+
+	_leftImageTexture = new OpenCLTexture(_screenLeftImage.getTextureReference().getTextureData().textureID, _screenLeftImage.getTextureReference().getTextureData().textureTarget);
+	_screenKernelReadTextures.push_back(_leftImageTexture);
+	_rightImageTexture = new OpenCLTexture(_screenRightImage.getTextureReference().getTextureData().textureID, _screenRightImage.getTextureReference().getTextureData().textureTarget);
+	_screenKernelReadTextures.push_back(_rightImageTexture);
+
+	_screenImageTexture = new OpenCLTexture(_screenImage.getTextureReference().getTextureData().textureID, _screenImage.getTextureReference().getTextureData().textureTarget);
+	_screenKernelWriteTextures.push_back(_screenImageTexture);
+
+	_barrierImageTexture = new OpenCLTexture(_barrierImage.getTextureReference().getTextureData().textureID, _barrierImage.getTextureReference().getTextureData().textureTarget);
+	_barrierKernelWriteTextures.push_back(_barrierImageTexture);
+
+	_screenKernel->defineArguments(NULL, &_screenKernelReadBuffers, NULL, &_screenKernelReadTextures, &_screenKernelWriteTextures);
+	_barrierKernel->defineArguments(NULL, &_barrierKernelReadBuffers, NULL, NULL, &_barrierKernelWriteTextures);
+	
+	// initialize model transormation
 	updateModelTransformation();
-
 	_model.setWidth(_width*_modelScale);
 }
 
 ParallaxBarrier::~ParallaxBarrier()
 {
+	delete _screenKernel;
+	delete _barrierKernel;
+	delete _screenPoints;
+	delete _barrierPoints;
+
+	delete _screenPointsBuffer;
+	delete _barrierPointsBuffer;
+	delete _leftImageTexture;
+	delete _rightImageTexture;
+	delete _screenImageTexture;
+	delete _barrierImageTexture;
 }
 
-void ParallaxBarrier::update(ofVec3f const &leftEyePosition, ofVec3f const &rightEyePosition, ofImage &leftEyeView, ofImage &rightEyeView)
+void ParallaxBarrier::update(ofVec3f const &leftEyePosition, ofVec3f const &rightEyePosition)
 {
 	errorRatio = 0;
 
@@ -42,7 +94,7 @@ void ParallaxBarrier::update(ofVec3f const &leftEyePosition, ofVec3f const &righ
 	_model.update(_modelLeftEyePosition, _modelRightEyePosition);
 
 	//modify pixels
-	updatePixels(leftEyeView, rightEyeView);
+	updatePixels();
 }
 
 void ParallaxBarrier::updateModelTransformation()
@@ -58,10 +110,10 @@ void ParallaxBarrier::updateModelTransformation()
 	_modelTransformation = modelCenterTranslation * modelRotation * modelUpRotation * modelTranslation * modelScale;
 }
 
-void ParallaxBarrier::updatePixels(ofImage &leftEyeView, ofImage &rightEyeView)
+void ParallaxBarrier::updatePixels()
 {
 	updateBarrierPixels();
-	updateScreenPixels(leftEyeView, rightEyeView);
+	updateScreenPixels();
 }
 
 void ParallaxBarrier::updateBarrierPixels()
@@ -71,7 +123,8 @@ void ParallaxBarrier::updateBarrierPixels()
 	// the second point indicates the end of a non-transparent pixel zone
 	const vector<float>& points = _model.getBarrierPoints();
 
-	paintVerticalPixelsBlack(_barrierImage);
+	//initialize points array
+	fill_n(_barrierPoints, _barrierResolutionWidth, 0);
 
 	float itValue, floatingPixel, pixelPercentage;
 	int actualPixel, startPixel = 0, endPixel;
@@ -89,7 +142,7 @@ void ParallaxBarrier::updateBarrierPixels()
 			endPixel = actualPixel - 1;
 
 			//paint white
-			paintVerticalPixels(ofColor::white, startPixel, endPixel, _barrierImage);
+			fill_n(&_barrierPoints[startPixel], endPixel - startPixel + 1, 1);
 
 			//actual pixel starts black
 			startPixel = actualPixel;
@@ -99,7 +152,7 @@ void ParallaxBarrier::updateBarrierPixels()
 			endPixel = actualPixel;
 
 			//paint white
-			paintVerticalPixels(ofColor::white, startPixel, endPixel, _barrierImage);
+			fill_n(&_barrierPoints[startPixel], endPixel - startPixel + 1, 1);
 
 			//next pixel starts black
 			startPixel = actualPixel + 1;
@@ -134,19 +187,22 @@ void ParallaxBarrier::updateBarrierPixels()
 		endPixel = _barrierImage.width - 1;
 
 		//paint white
-		paintVerticalPixels(ofColor::white, startPixel, endPixel, _barrierImage);
+		fill_n(&_barrierPoints[startPixel], endPixel - startPixel + 1, 1);
 	}
 
-	_barrierImage.update();
+	//update screen textures in opencl
+	_barrierKernel->execute(2, _barrierKernelGlobalSize, _barrierKernelLocalSize);
 }
 
-void ParallaxBarrier::updateScreenPixels(ofImage &leftEyeView, ofImage &rightEyeView)
+void ParallaxBarrier::updateScreenPixels()
 {
 	//points in the list delimit pixel zones for each eye view
 	//first zone corresponds to left eye view
 	const vector<float>& points = _model.getScreenPoints();
 
-	_screenImage.clone(leftEyeView);
+	// update points
+	//initialize points array
+	fill_n(_screenPoints, _screenResolutionWidth, -1);
 
 	float itValue, floatingPixel, pixelPercentage;
 	int actualPixel, startPixel = -1, endPixel;
@@ -169,7 +225,7 @@ void ParallaxBarrier::updateScreenPixels(ofImage &leftEyeView, ofImage &rightEye
 				if (pair)
 				{
 					//paint right view
-					paintVerticalPixels(rightEyeView, startPixel, endPixel, _screenImage);
+					fill_n(&_screenPoints[startPixel], endPixel - startPixel + 1, 1);
 				} else
 				{
 					//paint left view
@@ -177,7 +233,7 @@ void ParallaxBarrier::updateScreenPixels(ofImage &leftEyeView, ofImage &rightEye
 				}
 
 				//paint one black pixel
-				paintVerticalPixels(ofColor::black, actualPixel, actualPixel, _screenImage);
+				fill_n(&_screenPoints[actualPixel], 1, 0);
 
 				//next pixel starts left/right view
 				startPixel = actualPixel + 1;
@@ -189,7 +245,7 @@ void ParallaxBarrier::updateScreenPixels(ofImage &leftEyeView, ofImage &rightEye
 				endPixel = actualPixel - 1;
 
 				//paint right view
-				paintVerticalPixels(rightEyeView, startPixel, endPixel, _screenImage);
+				fill_n(&_screenPoints[startPixel], endPixel - startPixel + 1, 1);
 
 				//actual pixel starts left view
 				startPixel = actualPixel;
@@ -211,7 +267,7 @@ void ParallaxBarrier::updateScreenPixels(ofImage &leftEyeView, ofImage &rightEye
 				endPixel = actualPixel;
 
 				//paint right view
-				paintVerticalPixels(rightEyeView, startPixel, endPixel, _screenImage);
+				fill_n(&_screenPoints[startPixel], endPixel - startPixel + 1, 1);
 
 				//next pixel starts left view
 				startPixel = actualPixel + 1;
@@ -236,46 +292,10 @@ void ParallaxBarrier::updateScreenPixels(ofImage &leftEyeView, ofImage &rightEye
 		pair = !pair;
 	}
 
-	_screenImage.update();
-}
+	// end update points
 
-void ParallaxBarrier::paintVerticalPixels(ofColor const &color, int start, int end, ofImage &image)
-{
-	int index;
-	unsigned char* imagePixels = image.getPixels();
-	for(int i = start; i <= end; i++)
-	{
-		for(int j = 0; j < image.height; j++)
-		{
-			index = (image.width*j + i)*3;
-			imagePixels[index] = color.r;
-			imagePixels[index + 1] = color.g;
-			imagePixels[index + 2] = color.b;
-		}
-	}
-}
-
-void ParallaxBarrier::paintVerticalPixels(ofImage &sourceImage, int start, int end, ofImage &image)
-{
-	int index;
-	unsigned char* imagePixels = image.getPixels();
-	unsigned char* sourcePixels = sourceImage.getPixels();
-	for(int i = start; i <= end; i++)
-	{
-		for(int j = 0; j < image.height; j++)
-		{
-			index = (image.width*j + i)*3;
-			imagePixels[index] = sourcePixels[index];
-			imagePixels[index + 1] = sourcePixels[index + 1];
-			imagePixels[index + 2] = sourcePixels[index + 2];
-		}
-	}
-}
-
-void ParallaxBarrier::paintVerticalPixelsBlack(ofImage &image)
-{
-	unsigned char* imagePixels = image.getPixels();
-	fill(imagePixels, imagePixels + image.width*image.height, 0);
+	//update screen textures in opencl
+	_screenKernel->execute(2, _screenKernelGlobalSize, _screenKernelLocalSize);
 }
 
 float ParallaxBarrier::getWidth()
@@ -386,12 +406,22 @@ void ParallaxBarrier::setUpDirection(ofVec3f upDirection)
 	updateModelTransformation();
 }
 
-const ofImage& ParallaxBarrier::getScreenImage()
+ofImage& ParallaxBarrier::getScreenImage()
 {
 	return _screenImage;
 }
 
-const ofImage& ParallaxBarrier::getBarrierImage()
+ofImage& ParallaxBarrier::getBarrierImage()
 {
 	return _barrierImage;
+}
+
+ofImage& ParallaxBarrier::getScreenLeftImage()
+{
+	return _screenLeftImage;
+}
+
+ofImage& ParallaxBarrier::getScreenRightImage()
+{
+	return _screenRightImage;
 }

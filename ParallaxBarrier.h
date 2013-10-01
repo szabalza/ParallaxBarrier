@@ -4,6 +4,7 @@
 #include "ofImage.h"
 
 #include "ParallaxBarrierModel.h"
+#include "opencl/OpenCLKernel.h"
 
 #define SCREEN_PIXEL_EPSILON_PERCENTAGE 0.10f
 #define BARRIER_PIXEL_EPSILON_PERCENTAGE 0.05f
@@ -35,10 +36,13 @@ public:
 	void setViewDirection(ofVec3f viewDirection);
 	void setUpDirection(ofVec3f upDirection);
 
-	void update(ofVec3f const &leftEyePosition, ofVec3f const &rightEyePosition, ofImage &leftEyeView, ofImage &rightEyeView);
+	void update(ofVec3f const &leftEyePosition, ofVec3f const &rightEyePosition);
 
-	const ofImage& getScreenImage();
-	const ofImage& getBarrierImage();
+	ofImage& getScreenImage();
+	ofImage& getBarrierImage();
+
+	ofImage& getScreenLeftImage();
+	ofImage& getScreenRightImage();
 
 	int getErrorRatio();
 private:
@@ -67,15 +71,36 @@ private:
 
 	ofImage _barrierImage;
 	ofImage _screenImage;
+	ofImage _screenLeftImage;
+	ofImage _screenRightImage;
+
+	OpenCLKernel * _screenKernel;
+	OpenCLKernel * _barrierKernel;
+
+	size_t _screenKernelLocalSize[2];
+	size_t _screenKernelGlobalSize[2];
+	size_t _barrierKernelLocalSize[2];
+	size_t _barrierKernelGlobalSize[2];
+
+	OpenCLBuffer *_screenPointsBuffer;
+	OpenCLTexture *_leftImageTexture, *_rightImageTexture, *_screenImageTexture;
+
+	OpenCLBuffer *_barrierPointsBuffer;
+	OpenCLTexture *_barrierImageTexture;
+
+	list<OpenCLBuffer*> _screenKernelReadBuffers;
+	list<OpenCLTexture*> _screenKernelReadTextures;
+	list<OpenCLTexture*> _screenKernelWriteTextures;
+
+	list<OpenCLBuffer*> _barrierKernelReadBuffers;
+	list<OpenCLTexture*> _barrierKernelWriteTextures;
+
+	cl_char* _screenPoints;
+	cl_char* _barrierPoints;
 
 	void updateModelTransformation();
-	void updatePixels(ofImage &leftEyeView, ofImage &rightEyeView);
-	void updateScreenPixels(ofImage &leftEyeView, ofImage &rightEyeView);
+	void updatePixels();
+	void updateScreenPixels();
 	void updateBarrierPixels();
-
-	void paintVerticalPixels(ofColor const &color, int start, int end, ofImage &image);
-	void paintVerticalPixels(ofImage &sourceImage, int start, int end, ofImage &image);
-
-	void paintVerticalPixelsBlack(ofImage &image);
 };
 

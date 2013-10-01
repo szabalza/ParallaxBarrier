@@ -239,7 +239,7 @@ bool OpenCLKernel::defineArguments(const list<OpenCLBuffer*> * readWriteBuffers,
 	return true;
 }
 
-bool OpenCLKernel::execute(const int &workDimension, const size_t &globalSize, const size_t &localSize)
+bool OpenCLKernel::execute(const int &workDimension, const size_t* globalSize, const size_t* localSize)
 {
 	list<OpenCLBuffer *>::const_iterator iterator, end;
 
@@ -310,7 +310,7 @@ bool OpenCLKernel::execute(const int &workDimension, const size_t &globalSize, c
 	}
 
 	/* Execute OpenCL Kernel */
-	status = clEnqueueNDRangeKernel(command_queue, kernel, workDimension, NULL, &globalSize, &localSize, 0, NULL, NULL);
+	status = clEnqueueNDRangeKernel(command_queue, kernel, workDimension, NULL, globalSize, localSize, 0, NULL, NULL);
 	if (status != CL_SUCCESS)
 		return false;
 
