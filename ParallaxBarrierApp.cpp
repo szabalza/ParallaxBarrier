@@ -1,5 +1,6 @@
 #include "ParallaxBarrierApp.h"
 
+
 BarrierWindow::BarrierWindow(): barrierImage(NULL)
 {
 }
@@ -97,6 +98,8 @@ void ParallaxBarrierApp::initializeParallaxBarrier(float width, float height, in
 	this->screenOffsetX = screenOffsetX;
 	this->screenOffsetY = screenOffsetY;
 	parallaxBarrier = new ParallaxBarrier(width, height, screenResolutionWidth, screenResolutionHeight, barrierResolutionWidth, barrierResolutionHeight, spacing, position, viewDirection, upDirection);
+
+	viewport = ofRectangle(0, 0, screenResolutionWidth, screenResolutionHeight);
 }
 
 //--------------------------------------------------------------
@@ -148,10 +151,25 @@ void ParallaxBarrierApp::draw()
 		{
 			ofTranslate(0, -ofGetWindowHeight());
 		}
+
+		ofDisableLighting();
 		parallaxBarrier->getScreenImage().draw(screenOffsetX, -screenOffsetY);
 		ofPopMatrix();
+
+		ofSetColor(255);
+		string msg = string("");
+		msg += "\nfps: " + ofToString(ofGetFrameRate(), 2);
+		msg += "\ns: " + ofToString(parallaxBarrier->getSpacing(), 3);
+		msg += "\nox: " + ofToString(screenOffsetX, 3);
+		ofDrawBitmapStringHighlight(msg, 10, 20);
 	}
 
+}
+
+//--------------------------------------------------------------
+const ofRectangle& ParallaxBarrierApp::getViewport()
+{
+	return this->viewport;
 }
 
 //--------------------------------------------------------------

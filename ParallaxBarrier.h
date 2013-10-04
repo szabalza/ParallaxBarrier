@@ -6,8 +6,8 @@
 #include "ParallaxBarrierModel.h"
 #include "opencl/OpenCLKernel.h"
 
-#define SCREEN_PIXEL_EPSILON_PERCENTAGE 0.10f
-#define BARRIER_PIXEL_EPSILON_PERCENTAGE 0.05f
+#define SCREEN_PIXEL_EPSILON_PERCENTAGE 0.01f//0.10f
+#define BARRIER_PIXEL_EPSILON_PERCENTAGE 0.01f//0.05f
 
 class ParallaxBarrier
 {

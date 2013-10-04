@@ -34,6 +34,7 @@ public:
 
 	int getScreenWidth();
 	int getScreenHeight();
+	const ofRectangle& getViewport();
 
 	void keyReleased(int key);
 
@@ -46,6 +47,8 @@ protected:
 	ofVec3f rightEyePosition;
 
 	ParallaxBarrier* parallaxBarrier;
+
+	ofRectangle viewport;
 
 private:
 	ofxFenster* barrierWindow;
