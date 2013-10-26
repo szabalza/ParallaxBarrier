@@ -80,7 +80,7 @@ ParallaxBarrier::~ParallaxBarrier()
 	delete _barrierImageTexture;
 }
 
-void ParallaxBarrier::update(ofVec3f const &leftEyePosition, ofVec3f const &rightEyePosition)
+void ParallaxBarrier::update(ofVec3f const &leftEyePosition, ofVec3f const &rightEyePosition, bool invertedBarrier)
 {
 	errorRatio = 0;
 
@@ -94,7 +94,7 @@ void ParallaxBarrier::update(ofVec3f const &leftEyePosition, ofVec3f const &righ
 	_model.update(_modelLeftEyePosition, _modelRightEyePosition);
 
 	//modify pixels
-	updatePixels();
+	updatePixels(invertedBarrier);
 }
 
 void ParallaxBarrier::updateModelTransformation()
@@ -110,13 +110,13 @@ void ParallaxBarrier::updateModelTransformation()
 	_modelTransformation = modelCenterTranslation * modelRotation * modelUpRotation * modelTranslation * modelScale;
 }
 
-void ParallaxBarrier::updatePixels()
+void ParallaxBarrier::updatePixels(bool invertedBarrier)
 {
-	updateBarrierPixels();
-	updateScreenPixels();
+	updateBarrierPixels(invertedBarrier);
+	updateScreenPixels(invertedBarrier);
 }
 
-void ParallaxBarrier::updateBarrierPixels()
+void ParallaxBarrier::updateBarrierPixels(bool invertedBarrier)
 {
 	// points in the list are ordered pairs where 
 	// the first point indicates the start of a non-transparent pixel zone, and 
@@ -124,7 +124,7 @@ void ParallaxBarrier::updateBarrierPixels()
 	const vector<float>& points = _model.getBarrierPoints();
 
 	//initialize points array
-	fill_n(_barrierPoints, _barrierResolutionWidth, 0);
+	fill_n(_barrierPoints, _barrierResolutionWidth, invertedBarrier? 1 : 0);
 
 	float itValue, floatingPixel, pixelPercentage;
 	int actualPixel, startPixel = 0, endPixel;
@@ -142,7 +142,7 @@ void ParallaxBarrier::updateBarrierPixels()
 			endPixel = actualPixel - 1;
 
 			//paint white
-			fill_n(&_barrierPoints[startPixel], endPixel - startPixel + 1, 1);
+			fill_n(&_barrierPoints[startPixel], endPixel - startPixel + 1, invertedBarrier? 0: 1);
 
 			//actual pixel starts black
 			startPixel = actualPixel;
@@ -152,7 +152,7 @@ void ParallaxBarrier::updateBarrierPixels()
 			endPixel = actualPixel;
 
 			//paint white
-			fill_n(&_barrierPoints[startPixel], endPixel - startPixel + 1, 1);
+			fill_n(&_barrierPoints[startPixel], endPixel - startPixel + 1, invertedBarrier? 0: 1);
 
 			//next pixel starts black
 			startPixel = actualPixel + 1;
@@ -187,14 +187,14 @@ void ParallaxBarrier::updateBarrierPixels()
 		endPixel = _barrierImage.width - 1;
 
 		//paint white
-		fill_n(&_barrierPoints[startPixel], endPixel - startPixel + 1, 1);
+		fill_n(&_barrierPoints[startPixel], endPixel - startPixel + 1, invertedBarrier? 0: 1);
 	}
 
 	//update screen textures in opencl
 	_barrierKernel->execute(2, _barrierKernelGlobalSize, _barrierKernelLocalSize);
 }
 
-void ParallaxBarrier::updateScreenPixels()
+void ParallaxBarrier::updateScreenPixels(bool invertedBarrier)
 {
 	//points in the list delimit pixel zones for each eye view
 	//first zone corresponds to left eye view
@@ -202,7 +202,7 @@ void ParallaxBarrier::updateScreenPixels()
 
 	// update points
 	//initialize points array
-	fill_n(_screenPoints, _screenResolutionWidth, -1);
+	fill_n(_screenPoints, _screenResolutionWidth, invertedBarrier? 1: -1);
 
 	float itValue, floatingPixel, pixelPercentage;
 	int actualPixel, startPixel = -1, endPixel;
@@ -225,7 +225,7 @@ void ParallaxBarrier::updateScreenPixels()
 				if (pair)
 				{
 					//paint right view
-					fill_n(&_screenPoints[startPixel], endPixel - startPixel + 1, 1);
+					fill_n(&_screenPoints[startPixel], endPixel - startPixel + 1, invertedBarrier? -1: 1);
 				} else
 				{
 					//paint left view
@@ -245,7 +245,7 @@ void ParallaxBarrier::updateScreenPixels()
 				endPixel = actualPixel - 1;
 
 				//paint right view
-				fill_n(&_screenPoints[startPixel], endPixel - startPixel + 1, 1);
+				fill_n(&_screenPoints[startPixel], endPixel - startPixel + 1, invertedBarrier? -1: 1);
 
 				//actual pixel starts left view
 				startPixel = actualPixel;
@@ -267,7 +267,7 @@ void ParallaxBarrier::updateScreenPixels()
 				endPixel = actualPixel;
 
 				//paint right view
-				fill_n(&_screenPoints[startPixel], endPixel - startPixel + 1, 1);
+				fill_n(&_screenPoints[startPixel], endPixel - startPixel + 1, invertedBarrier? -1: 1);
 
 				//next pixel starts left view
 				startPixel = actualPixel + 1;

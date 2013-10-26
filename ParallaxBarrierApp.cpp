@@ -19,9 +19,10 @@ void BarrierWindow::setup()
 void BarrierWindow::draw()
 {
 	//draw barrier texture
-	if (barrierImage != NULL)
+	if (barrierImage != NULL && parallaxBarrierApp->updateBarrier)
 	{
 		barrierImage->draw(0,0);
+		parallaxBarrierApp->updateBarrier = false;
 	}
 }
 
@@ -85,11 +86,17 @@ void ParallaxBarrierApp::setup()
 	barrierWindow->setWindowTitle("Barrier");
 	barrierWindow->setBackgroundColor(0, 0, 0);
 
+	barrierWindowListener->parallaxBarrierApp = this;
+
 	if (parallaxBarrier != NULL)
 	{
 		barrierWindowListener->barrierImage = &(parallaxBarrier->getBarrierImage());
 	}		
-	
+
+	invertBarrier = false;
+	invertCounter = 0;
+	invertLimit = 0;
+	updateBarrier = false;
 }
 
 //--------------------------------------------------------------
@@ -99,13 +106,13 @@ void ParallaxBarrierApp::initializeParallaxBarrier(float width, float height, in
 	this->screenOffsetY = screenOffsetY;
 	parallaxBarrier = new ParallaxBarrier(width, height, screenResolutionWidth, screenResolutionHeight, barrierResolutionWidth, barrierResolutionHeight, spacing, position, viewDirection, upDirection);
 
-	viewport = ofRectangle(0, 0, screenResolutionWidth, screenResolutionHeight);
+	viewport = ofRectangle(screenOffsetX, screenOffsetY, screenResolutionWidth, screenResolutionHeight);
 }
 
 //--------------------------------------------------------------
 void ParallaxBarrierApp::draw()
 {
-	if (parallaxBarrier != NULL)
+	if (parallaxBarrier != NULL && !updateBarrier)
 	{
 		//draw left image and load into left texture
 		glBindFramebuffer(GL_FRAMEBUFFER, frameBufferObject);
@@ -138,7 +145,14 @@ void ParallaxBarrierApp::draw()
 		ofSetColor(ofColor::white);
 
 		//update parallax barrier
-		parallaxBarrier->update(leftEyePosition, rightEyePosition);
+		parallaxBarrier->update(leftEyePosition, rightEyePosition, invertBarrier);
+
+		if (invertLimit > 0 && invertCounter > invertLimit)
+		{
+			invertCounter = 0;
+			invertBarrier = !invertBarrier;
+		}
+		invertCounter ++;
 
 		//draw screen texture
 		ofPushMatrix();
@@ -156,13 +170,16 @@ void ParallaxBarrierApp::draw()
 		parallaxBarrier->getScreenImage().draw(screenOffsetX, -screenOffsetY);
 		ofPopMatrix();
 
-		ofSetColor(255);
-		string msg = string("");
-		msg += "\nfps: " + ofToString(ofGetFrameRate(), 2);
-		msg += "\ns: " + ofToString(parallaxBarrier->getSpacing(), 3);
-		msg += "\nox: " + ofToString(screenOffsetX, 3);
-		ofDrawBitmapStringHighlight(msg, 10, 20);
+		updateBarrier = true;
 	}
+
+	ofSetColor(255);
+	string msg = string("");
+	msg += "\nfps: " + ofToString(ofGetFrameRate(), 2);
+	msg += "\ns: " + ofToString(parallaxBarrier->getSpacing(), 3);
+	msg += "\nox: " + ofToString(screenOffsetX, 3);
+	ofDrawBitmapStringHighlight(msg, 10, 20);
+
 
 }
 
@@ -177,6 +194,10 @@ void ParallaxBarrierApp::keyReleased(int key)
 {
 	if(key=='f')
 		ofxFensterManager::get()->getPrimaryWindow()->toggleFullscreen();
+	if(key=='=')
+		invertLimit++;
+	if(key=='-')
+		invertLimit--;
 }
 
 int ParallaxBarrierApp::getScreenWidth()

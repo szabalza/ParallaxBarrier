@@ -4,6 +4,8 @@
 #include "ofxFensterManager.h"
 #include "ParallaxBarrier.h"
 
+class ParallaxBarrierApp;
+
 class BarrierWindow: public ofxFensterListener {
 public:
 	BarrierWindow();
@@ -13,6 +15,7 @@ public:
 	void keyReleased(int key, ofxFenster* window);
 
 	ofImage* barrierImage;
+	ParallaxBarrierApp* parallaxBarrierApp;
 };
 
 class ParallaxBarrierApp : public ofBaseApp {
@@ -38,6 +41,8 @@ public:
 
 	void keyReleased(int key);
 
+	bool updateBarrier;
+
 protected:
 	int screenOffsetX, screenOffsetY;
 
@@ -45,6 +50,9 @@ protected:
 	// updated in app 'update' method
 	ofVec3f leftEyePosition;
 	ofVec3f rightEyePosition;
+	bool invertBarrier;
+	int invertCounter;
+	int invertLimit;
 
 	ParallaxBarrier* parallaxBarrier;
 

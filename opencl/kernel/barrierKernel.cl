@@ -1,4 +1,4 @@
-__kernel void updateBarrierPixels(	__constant char* barrierPoints,
+__kernel void updateBarrierPixels(	const __global char* barrierPoints,
 									__write_only image2d_t barrierImage)
 {
 	const int i = get_global_id(0);

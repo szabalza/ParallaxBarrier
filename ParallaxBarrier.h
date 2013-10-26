@@ -36,7 +36,7 @@ public:
 	void setViewDirection(ofVec3f viewDirection);
 	void setUpDirection(ofVec3f upDirection);
 
-	void update(ofVec3f const &leftEyePosition, ofVec3f const &rightEyePosition);
+	void update(ofVec3f const &leftEyePosition, ofVec3f const &rightEyePosition, bool invertedBarrier = false);
 
 	ofImage& getScreenImage();
 	ofImage& getBarrierImage();
@@ -99,8 +99,8 @@ private:
 	cl_char* _barrierPoints;
 
 	void updateModelTransformation();
-	void updatePixels();
-	void updateScreenPixels();
-	void updateBarrierPixels();
+	void updatePixels(bool invertedBarrier);
+	void updateScreenPixels(bool invertedBarrier);
+	void updateBarrierPixels(bool invertedBarrier);
 };
 
